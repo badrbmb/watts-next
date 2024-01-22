@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "watts-next"
+version = "0.1.0"
+description = "End to end ML application to forecast electricity related data using numerical weather predictions."
+authors = ["Badr Ben m'barek <badr.benb@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4"
+power-stash = { path = "./power-stash", develop = true }
+weather-weaver = { path = "./weather-weaver", develop = true }
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
