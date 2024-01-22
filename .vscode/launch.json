@@ -1,0 +1,43 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "PowerStash CLI",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "cwd": "${workspaceFolder}/power-stash/power_stash",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--start", "2020-01-01",
+                "--end", "2024-01-15",
+                "--source", "entsoe",
+                "--repository-type", "database",
+                "--n-workers", "5",
+                "--threads-per-worker", "5",
+            ]
+        },
+        {
+            "name": "WeatherWeaver CLI",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "cwd": "${workspaceFolder}/weather-weaver/weather_weaver",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--source", "ECMWF [Open data]",
+                "--storage", "local",
+                "--date-offset", "12",
+                "--offset-frequency", "daily",
+                "--n-workers", "2",
+                "--threads-per-worker", "4",
+                "2024-01-01",
+            ]
+        }
+    ]
+}
