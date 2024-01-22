@@ -1,0 +1,6 @@
+[submodule "power-stash"]
+	path = power-stash
+	url = git@github.com:badrbmb/power-stash.git
+[submodule "weather-weaver"]
+	path = weather-weaver
+	url = git@github.com:badrbmb/weather-weaver.git
