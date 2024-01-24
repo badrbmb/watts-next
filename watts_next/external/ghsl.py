@@ -8,11 +8,10 @@ from watts_next.utils import download_file_from_url
 logger = structlog.getLogger()
 
 OUT_DIR = DATA_DIR / "ghsl"
+OUT_DIR.mkdir(exist_ok=True)
 
 # years with data available
 REFERENCE_EPOCH = 2020
-
-REFERENCE_RESOLUTION = 100  # meters
 
 
 class GhslRespository:
@@ -29,7 +28,7 @@ class GhslRespository:
     @property
     def tiling_filename(self) -> str:
         """File name of all tilings available."""
-        return "GHSL_data_54009_shapefile.zip"
+        return "GHSL_data_4326_shapefile.zip"
 
     def _download_tiling_schema(self) -> None:
         """Download the shapefile containing the tiling schema used in the GHSL data."""
@@ -47,25 +46,17 @@ class GhslRespository:
                 path=path,
             )
             self._download_tiling_schema()
-        return gpd.read_file(path).to_crs("EPSG:4326")
+        gdf = gpd.read_file(path).to_crs("EPSG:4326")
+        # keep only valid geometries
+        return gdf[gdf["geometry"].apply(lambda x: x.is_valid)].copy()
 
     def find_intersecting_tile_ids(self, geomety: BaseGeometry) -> list[str]:
         """Return tiles intersecting given geometry."""
-
-        def _intersects(geom: BaseGeometry) -> bool:
-            try:
-                return geomety.intersects(geom)
-            except Exception:
-                # TODO: refine exception handling for cases liek below:
-                # IllegalArgumentException: CGAlgorithmsDD::orientationIndex encountered NaN/Inf numbers
-                return False
-
-        df_tiles = self.tiling_gdf.copy()
-        df_tiles = df_tiles[df_tiles["geometry"].apply(lambda x: _intersects(x))].copy()
+        df_tiles = gpd.clip(self.tiling_gdf, geomety)
         return df_tiles["tile_id"].tolist()
 
     def _get_tile_file_name(self, tile_id: str) -> str:
-        return f"GHS_BUILT_S_E{self.reference_epoch}_GLOBE_R2023A_54009_100_V1_0_{tile_id}.zip"
+        return f"GHS_POP_E{self.reference_epoch}_GLOBE_R2023A_4326_3ss_V1_0_{tile_id}.zip"
 
     def download_tile_data(self, tile_id: str) -> None:
         """Download tile files for a given id across all reference epochs."""
@@ -79,6 +70,6 @@ class GhslRespository:
             )
             return
         base_url = self.base_url.replace("ghsl.", "jeodpp.")
-        ref_url = f"{base_url}/ftp/jrc-opendata/GHSL/GHS_BUILT_S_GLOBE_R2023A/GHS_BUILT_S_E{self.reference_epoch}_GLOBE_R2023A_54009_100/V1-0/tiles"
+        ref_url = f"{base_url}/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A/GHS_POP_E{self.reference_epoch}_GLOBE_R2023A_4326_3ss/V1-0/tiles"  # noqa: E501
         url = f"{ref_url}/{file_name}"
         download_file_from_url(url=url, output_path=output_path)
