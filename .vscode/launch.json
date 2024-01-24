@@ -34,7 +34,7 @@
                 "--storage", "local",
                 "--date-offset", "12",
                 "--offset-frequency", "daily",
-                "--n-workers", "2",
+                "--n-workers", "4",
                 "--threads-per-worker", "4",
                 "2024-01-01",
             ]
