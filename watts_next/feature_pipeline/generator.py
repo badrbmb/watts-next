@@ -1,5 +1,6 @@
 import datetime as dt
 from pathlib import Path
+from typing import Any
 
 import dask.dataframe
 import pandas as pd
@@ -9,9 +10,9 @@ from power_stash.inputs.entsoe.request import RequestType
 from power_stash.outputs.database.repository import SqlRepository
 from sqlalchemy import and_, select
 
-from watts_next.feature_pipeline.base import BaseFeatureGenerator
+from watts_next.feature_pipeline.base import BaseFeatureGenerator, BasePreProcessor
 from watts_next.feature_pipeline.ghsl import GhslRespository
-from watts_next.models import ZoneKey
+from watts_next.request import ZoneKey
 
 logger = structlog.getLogger()
 
@@ -150,8 +151,6 @@ class AggregateFeatureGenerator(BaseFeatureGenerator):
         end: dt.datetime,
         request_type: RequestType = RequestType.CONSUMPTION,
         add_target: bool = True,
-        add_calendar_features: bool = True,
-        add_holidays: bool = True,
     ) -> pd.DataFrame:
         """Create features and target for given zone key."""
         # load NWP data (features)
@@ -175,10 +174,31 @@ class AggregateFeatureGenerator(BaseFeatureGenerator):
 
             # fill missing value (3h NWP frequency vs hourly electricyt data)
             df_data = df_data.interpolate(method="linear", limit=3)
-        if add_calendar_features:
-            # add base calendar features
-            df_data = self.add_base_calendar_features(df_data)
-        if add_holidays:
-            # add holidays
-            df_data = self.add_holidays(df=df_data, zone_key=zone_key)
         return df_data
+
+
+class CustomPreprocessor(BasePreProcessor):
+    """Custom preprocessor class."""
+
+    def __init__(
+        self,
+        include_calendar_features: bool = True,
+        include_holidays: bool = True,
+    ) -> None:
+        self.include_calendar_features = include_calendar_features
+        self.include_holidays = include_holidays
+
+    def fit(self, *args: Any) -> "CustomPreprocessor":  # noqa: ANN401, ARG002
+        """Nothing to fit."""
+        return self
+
+    def transform(self, df: pd.DataFrame, zone_key: ZoneKey) -> pd.DataFrame:
+        """Transform dataframe by adding new calendar features."""
+        if self.include_calendar_features:
+            # add base calendar features
+            df = self.add_base_calendar_features(df)
+        if self.include_holidays:
+            # add holidays
+            df = self.add_holidays(df=df, zone_key=zone_key)
+
+        return df
