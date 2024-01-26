@@ -15,6 +15,7 @@ reverse-geocode = "^1.4.1"
 ray = {extras = ["data", "default"], version = "^2.9.1"}
 scikit-learn = "^1.4.0"
 holidays = "^0.41"
+snorkel = "^0.9.9"
 
 [tool.poetry.group.viz.dependencies]
 folium = "^0.15.1"
