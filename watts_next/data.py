@@ -4,10 +4,13 @@ from typing import Any, Iterator
 
 import numpy as np
 import pandas as pd
+import structlog
 from sklearn.model_selection import TimeSeriesSplit
 
 from watts_next.feature_pipeline.base import BaseFeatureGenerator, BasePreProcessor
 from watts_next.request import ZoneKey
+
+logger = structlog.get_logger()
 
 
 class FeatureType(Enum):
@@ -72,6 +75,37 @@ class DataLoader:
 
         return preprocessor
 
+    def generate_features(
+        self,
+        zone_key: ZoneKey,
+        start: dt.datetime,
+        end: dt.datetime,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> pd.DataFrame:
+        """Generate features using the feature_generator."""
+        logger.debug(
+            event="Generating features ...",
+            feature_generator=type(self.feature_generator).__name__,
+            zone_key=zone_key,
+            start=start,
+            end=end,
+        )
+        return self.feature_generator.generate_feature(
+            zone_key=zone_key,
+            start=start,
+            end=end,
+            **kwargs,
+        )
+
+    def transform(self, df: pd.DataFrame, zone_key: ZoneKey) -> pd.DataFrame:
+        """Transform the features using the preprocessor."""
+        logger.debug(
+            event="Transforming features ...",
+            preprocessor=type(self.preprocessor).__name__,
+            zone_key=zone_key,
+        )
+        return self.preprocessor.transform(df=df, zone_key=zone_key)
+
     def load_data(
         self,
         zone_key: ZoneKey,
@@ -79,12 +113,13 @@ class DataLoader:
         end: dt.datetime,
         **kwargs: Any,  # noqa: ANN401
     ) -> pd.DataFrame:
-        """Load data from source into a Ray Dataset."""
-        return self.feature_generator.generate_feature(
+        """Generate features are transform them.
+
+        kwargs are passed to the feature_generator only!
+        """
+        return self.transform(
+            df=self.generate_features(zone_key, start, end, **kwargs),
             zone_key=zone_key,
-            start=start,
-            end=end,
-            **kwargs,
         )
 
     @staticmethod

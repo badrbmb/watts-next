@@ -3,12 +3,11 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import pandas as pd
-from sklearn.base import BaseEstimator, TransformerMixin
 
 from watts_next.request import ZoneKey
 
 
-class BasePreProcessor(ABC, BaseEstimator, TransformerMixin):
+class BasePreProcessor(ABC):
     @abstractmethod
     def __init__(self, *args: Any) -> None:  # noqa: ANN401
         pass
@@ -19,7 +18,7 @@ class BasePreProcessor(ABC, BaseEstimator, TransformerMixin):
         pass
 
     @abstractmethod
-    def transform(self, *args: Any) -> None:  # noqa: ANN401
+    def transform(self, df: pd.DataFrame, zone_key: ZoneKey) -> pd.DataFrame:
         """Abstract transform method."""
         pass
 
