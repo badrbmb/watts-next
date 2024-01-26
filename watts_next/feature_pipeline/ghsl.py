@@ -14,7 +14,7 @@ from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
 from watts_next.config import DATA_DIR
-from watts_next.utils import download_file_from_url, load_geometry_from_geojsons
+from watts_next.utils import download_file_from_url
 
 logger = structlog.getLogger()
 
@@ -142,36 +142,3 @@ class GhslRespository:
         )
 
         return output_path
-
-
-class GhslService:
-    def __init__(self, repository: GhslRespository | None = None) -> None:
-        if repository is None:
-            repository = GhslRespository()
-            logger.debug(
-                event="Init. repository with defautl reference epoch.",
-                reference_epoch=repository.reference_epoch,
-            )
-        self.repository = repository
-
-    def create_entsoe_density_population_tif(self, update: bool = False) -> Path:
-        """Create a tif file of density population for ENTSO-E zones."""
-        zone_paths = list((DATA_DIR / "enstoe/geojson").glob("*.geojson"))
-        entsoe_geom = load_geometry_from_geojsons(zone_paths)
-
-        tile_ids = self.repository.find_intersecting_tile_ids(geomety=entsoe_geom)
-
-        merged_tif = self.repository.get_merged_tif_path(tile_ids)
-
-        if merged_tif.exists() and not update:
-            logger.info(
-                event="Density population .tif file already exists for the chosen region.",
-                update=update,
-            )
-            return merged_tif
-
-        # download individual tile tif
-        for tile_id in tile_ids:
-            self.repository.download_tile_data(tile_id=tile_id)
-
-        return self.repository.merge_tile_tifs(tile_ids=tile_ids)
