@@ -1,19 +1,25 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 import holidays
 import pandas as pd
 
-from watts_next.models import ZoneKey
+from watts_next.request import ZoneKey
 
 
-class BaseFeatureGenerator(ABC):
+class BasePreProcessor(ABC):
     @abstractmethod
-    def __init__(self) -> None:
+    def __init__(self, *args: Any) -> None:  # noqa: ANN401
         pass
 
     @abstractmethod
-    def generate_feature(self) -> None:
-        """Generate features."""
+    def fit(self, *args: Any) -> None:  # noqa: ANN401
+        """Abstract fit method."""
+        pass
+
+    @abstractmethod
+    def transform(self, *args: Any) -> None:  # noqa: ANN401
+        """Abstract transform method."""
         pass
 
     @staticmethod
@@ -49,20 +55,33 @@ class BaseFeatureGenerator(ABC):
     @staticmethod
     def add_holidays(df: pd.DataFrame, zone_key: ZoneKey) -> pd.DataFrame:
         """Flag holidays in df."""
+        df_out = df.copy()
         zone_holidays = holidays.country_holidays(
             country=zone_key.country_iso2,
             years={t.year for t in df.index},
         )
-        df["holiday"] = df.apply(lambda x: zone_holidays.get(x.name), axis=1)
-        return df
+        df_out["holiday"] = df_out.apply(lambda x: zone_holidays.get(x.name, "NA"), axis=1)
+        return df_out
 
     def add_base_calendar_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add all base calendar features to df."""
-        df = (
-            df.pipe(self.add_hour)
+        df_out = df.copy()
+        df_out = (
+            df_out.pipe(self.add_hour)
             .pipe(self.add_day)
             .pipe(self.flag_weekend)
             .pipe(self.add_week)
             .pipe(self.add_month)
         )
-        return df
+        return df_out
+
+
+class BaseFeatureGenerator(ABC):
+    @abstractmethod
+    def __init__(self) -> None:
+        pass
+
+    @abstractmethod
+    def generate_feature(self) -> None:
+        """Generate features."""
+        pass
