@@ -19,7 +19,7 @@ class ForecastType(Enum):
     YEARLY = "yearly"
 
 
-class AheadHourlyForecastTransformer(BaseEstimator, RegressorMixin):
+class AheadHourlyForecastRegressor(BaseEstimator, RegressorMixin):
     def __init__(self, forecast_type: ForecastType | str) -> None:
         if isinstance(forecast_type, str):
             forecast_type = ForecastType(forecast_type)
@@ -39,7 +39,7 @@ class AheadHourlyForecastTransformer(BaseEstimator, RegressorMixin):
         self,
         X: Any,  # noqa: ANN401, ARG002
         y: pd.Series,
-    ) -> "AheadHourlyForecastTransformer":
+    ) -> "AheadHourlyForecastRegressor":
         """Shift the dataframe with the desired frequency and store shifted results."""
         match self.forecast_type:
             case ForecastType.HOURLY:
@@ -67,7 +67,7 @@ class AheadHourlyForecastTransformer(BaseEstimator, RegressorMixin):
         return self._shifted_values is not None
 
     def predict(self, X: pd.DataFrame) -> pd.Series:
-        """Predict based on foresting type."""
+        """Predict based on forcasting type."""
         check_is_fitted(self)
         if self.shifted_values is None:
             # FIXME: convered by the _is_fitted (can remove this check)
