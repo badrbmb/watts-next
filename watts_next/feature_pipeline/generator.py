@@ -104,7 +104,7 @@ class AggregateFeatureGenerator(BaseFeatureGenerator):
         ddf_averages_by_run = ddf_averages_by_run.sort_values(["run_time", "timestamp"])
         ddf_averages = ddf_averages_by_run.drop_duplicates(subset="timestamp", keep="last")
         # smooth out tp due to oper having different sampling timestamp in open data version.
-        ddf_averages["tp"] = ddf_averages["tp"].rolling(2).mean().fillna(method="bfill")
+        ddf_averages["tp"] = ddf_averages["tp"].rolling(2).mean().bfill()
         df: pd.DataFrame = ddf_averages.compute()
         # timezone for NPW data is UTC
         df["timestamp"] = df["timestamp"].dt.tz_localize(
@@ -169,8 +169,5 @@ class AggregateFeatureGenerator(BaseFeatureGenerator):
                 end=end,
             )
             # join the two
-            df_data = df_electricity_data.join(df_data)
-
-            # fill missing value (3h NWP frequency vs hourly electricyt data)
-            df_data = df_data.interpolate(method="linear", limit=3)
+            df_data = df_electricity_data.join(df_data, how="outer")
         return df_data
