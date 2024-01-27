@@ -21,6 +21,7 @@ class ProphetPredictor:
         regressor_variables: list[RegressorVariable] | None = None,
     ) -> None:
         self.mode = mode
+        self.country_iso2 = country_iso2
         self.seasonality_mode = seasonality_mode
         self.holidays_prior_scale = holidays_prior_scale
         self.changepoint_prior_scale = changepoint_prior_scale
