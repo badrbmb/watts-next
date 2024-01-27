@@ -18,6 +18,7 @@ holidays = "^0.41"
 snorkel = "^0.9.9"
 xgboost = "^2.0.3"
 sktime = "^0.26.0"
+statsmodels = "^0.14.1"
 
 [tool.poetry.group.viz.dependencies]
 folium = "^0.15.1"
