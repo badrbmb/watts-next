@@ -1,79 +1,26 @@
 import datetime as dt
-from enum import Enum
 from typing import Any, Iterator
 
 import numpy as np
 import pandas as pd
 import structlog
 from sklearn.model_selection import TimeSeriesSplit
+from sklearn.pipeline import Pipeline
 
-from watts_next.feature_pipeline.base import BaseFeatureGenerator, BasePreProcessor
+from watts_next.feature_pipeline.base import BaseFeatureGenerator
 from watts_next.request import ZoneKey
 
 logger = structlog.get_logger()
 
 
-class FeatureType(Enum):
-    AGGREGATE = "aggregate"
-
-
-class PreProcessorType(Enum):
-    CALENDAR = "calendar"
-
-
 class DataLoader:
     def __init__(
         self,
-        feature_type: FeatureType,
-        preprocessor_type: PreProcessorType,
-        feature_generator_args: dict | None = None,
-        preprocessor_args: dict | None = None,
+        feature_generator: BaseFeatureGenerator,
+        preprocessing_pipeline: Pipeline,
     ) -> None:
-        super().__init__()
-        # assing the feature_generator
-        self.feature_generator = self._load_feature_generator(
-            feature_type,
-            feature_generator_args or {},
-        )
-        # assing the pre-processor
-        self.preprocessor = self._load_preprocessor(
-            preprocessor_type,
-            preprocessor_args or {},
-        )
-
-    @staticmethod
-    def _load_feature_generator(
-        feature_type: FeatureType,
-        feature_generator_args: dict,
-    ) -> BaseFeatureGenerator:
-        match feature_type:
-            case FeatureType.AGGREGATE:
-                from watts_next.feature_pipeline.generator import AggregateFeatureGenerator
-
-                feature_generator = AggregateFeatureGenerator(
-                    **feature_generator_args,
-                )
-            case _:
-                raise NotImplementedError(f"{feature_type=} not implemented!")
-
-        return feature_generator
-
-    @staticmethod
-    def _load_preprocessor(
-        preprocessor_type: PreProcessorType,
-        preprocessor_args: dict,
-    ) -> BasePreProcessor:
-        match preprocessor_type:
-            case PreProcessorType.CALENDAR:
-                from watts_next.feature_pipeline.processor import CalendarPreprocessor
-
-                preprocessor = CalendarPreprocessor(
-                    **preprocessor_args,
-                )
-            case _:
-                raise NotImplementedError(f"{preprocessor_type=} not implemented!")
-
-        return preprocessor
+        self.feature_generator = feature_generator
+        self.preprocessing_pipeline = preprocessing_pipeline
 
     def generate_features(
         self,
@@ -97,14 +44,29 @@ class DataLoader:
             **kwargs,
         )
 
+    @property
+    def preprocessing_pipeline_steps(self) -> list[str]:
+        """Get preprocessing pipeline step names."""
+        return [type(t[1]).__name__ for t in self.preprocessing_pipeline.steps]
+
+    def _assign_preprocessing_property(self, property_name: str, value: Any) -> None:  # noqa: ANN401
+        """Helper function to assign property to pre-processing steps."""
+        for _, step_model in self.preprocessing_pipeline.steps:
+            if hasattr(step_model, property_name):
+                setattr(step_model, property_name, value)
+
     def transform(self, df: pd.DataFrame, zone_key: ZoneKey) -> pd.DataFrame:
         """Transform the features using the preprocessor."""
         logger.debug(
             event="Transforming features ...",
-            preprocessor=type(self.preprocessor).__name__,
+            preprocessing_pipeline=self.preprocessing_pipeline_steps,
             zone_key=zone_key,
         )
-        return self.preprocessor.transform(df=df, zone_key=zone_key)
+        self._assign_preprocessing_property(
+            property_name="country_iso2",
+            value=zone_key.country_iso2,
+        )
+        return self.preprocessing_pipeline.fit_transform(X=df, y=None)
 
     def load_data(
         self,
@@ -113,9 +75,9 @@ class DataLoader:
         end: dt.datetime,
         **kwargs: Any,  # noqa: ANN401
     ) -> pd.DataFrame:
-        """Generate features are transform them.
+        """Generate features + transform them.
 
-        kwargs are passed to the feature_generator only!
+        kwargs are passed to the feature_generator only.
         """
         return self.transform(
             df=self.generate_features(zone_key, start, end, **kwargs),
@@ -131,3 +93,22 @@ class DataLoader:
         """Splits a dataset with timeseries features into train and test sets."""
         tss = TimeSeriesSplit(n_splits=n_splits, gap=gap)
         return tss.split(df)
+
+    @staticmethod
+    def get_train_test_data(
+        df: pd.DataFrame,
+        train_indices: np.ndarray,
+        test_indices: np.ndarray,
+        target_column: str = "value",
+    ) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
+        """Return test and train features and targets from a df using a list of indices."""
+        df_train = df.iloc[train_indices]
+        df_test = df.iloc[test_indices]
+
+        X_train = df_train[[t for t in df_train.columns if t != target_column]].copy()
+        y_train = df_train[target_column].copy()
+
+        X_test = df_test[[t for t in df_test.columns if t != target_column]].copy()
+        y_test = df_test[target_column].copy()
+
+        return X_train, y_train, X_test, y_test

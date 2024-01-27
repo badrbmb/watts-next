@@ -78,7 +78,13 @@ class SlicingFunctionsRepository:
     @staticmethod
     def is_holidays(x: pd.Series) -> bool:
         """Slicing function for holiday timestamps."""
-        return x["holiday"] != "NA"
+        return x["is_holiday"] == 1
+
+    @slicing_function()
+    @staticmethod
+    def is_weekend(x: pd.Series) -> bool:
+        """Slicing function for weekend timestamps."""
+        return x["is_weekend"] == 1
 
     @staticmethod
     def make_cut_off_slicing_function(function: Callable, cutoff: float) -> SlicingFunction:
@@ -102,7 +108,7 @@ class SlicingFunctionsRepository:
             ],
         )
 
-        all_slicing_functions = [self.is_holidays]
+        all_slicing_functions = [self.is_holidays, self.is_weekend]
         for function in [
             self.is_cold,
             self.is_hot,
