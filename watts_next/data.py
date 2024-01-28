@@ -1,11 +1,11 @@
 import datetime as dt
-from typing import Any, Iterator
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import structlog
-from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
+from sktime.split import TemporalTrainTestSplitter
 
 from watts_next.feature_pipeline.base import BaseFeatureGenerator
 from watts_next.request import ZoneKey
@@ -87,12 +87,11 @@ class DataLoader:
     @staticmethod
     def get_train_test_indices(
         df: pd.DataFrame,
-        n_splits: int = 5,
-        gap: int = 0,
-    ) -> Iterator[tuple[np.ndarray, np.ndarray]]:
+        test_size: float = 0.3,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Splits a dataset with timeseries features into train and test sets."""
-        tss = TimeSeriesSplit(n_splits=n_splits, gap=gap)
-        return tss.split(df)
+        splitter = TemporalTrainTestSplitter(test_size=test_size)
+        return next(splitter.split(df.index))
 
     @staticmethod
     def get_train_test_data(
