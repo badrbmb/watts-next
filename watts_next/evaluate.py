@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,7 @@ logger = structlog.get_logger()
 def get_overall_metrics(
     y_true: pd.Series,
     y_pred: pd.Series,
-) -> dict[str, np.float64]:
+) -> dict[str, Any]:
     """Get overall performance metrics."""
     mask = ~np.isnan(y_pred)
     y_true_filtered = y_true[mask]
@@ -46,85 +46,125 @@ def get_overall_metrics(
 
 
 class SlicingFunctionsRepository:
-    def __init__(
-        self,
-        min_cut_off: float = 0.1,
-        max_cut_off: float = 0.9,
-    ) -> None:
+    def __init__(self, min_cut_off: float = 0.1, max_cut_off: float = 0.9) -> None:
         self.min_cut_off = min_cut_off
         self.max_cut_off = max_cut_off
 
     @staticmethod
-    def is_cold(x: pd.Series, cut_off: float) -> bool:
-        """Slicing function for cold timestamps."""
-        return x["t2m"] <= cut_off
+    def create_equality_slicing_function(field: str, value: ..., name: str) -> SlicingFunction:
+        """Create an equality test slicing function."""
+
+        @slicing_function()
+        def slicing_fn(x: pd.Series) -> bool:
+            return x[field] == value
+
+        slicing_fn.name = name
+        return slicing_fn
 
     @staticmethod
-    def is_hot(x: pd.Series, cut_off: float) -> bool:
-        """Slicing function for hot timestamps."""
-        return x["t2m"] >= cut_off
+    def create_inequality_slicing_function(
+        field: str,
+        threshold: float,
+        name: str,
+        is_greater: bool,
+    ) -> SlicingFunction:
+        """Create an inequality test slicing function."""
+        if is_greater:
 
-    @staticmethod
-    def is_windy(x: pd.Series, cut_off: float) -> bool:
-        """Slicing function for windy timestamps."""
-        return abs(x["u10"]) >= cut_off or abs(x["v10"]) >= cut_off
+            @slicing_function()
+            def slicing_fn(x: pd.Series) -> bool:
+                return x[field] >= threshold
+        else:
 
-    @staticmethod
-    def is_wet(x: pd.Series, cut_off: float) -> bool:
-        """Slicing function for wet timestamps."""
-        return x["tp"] >= cut_off
+            @slicing_function()
+            def slicing_fn(x: pd.Series) -> bool:
+                return x[field] <= threshold
 
-    @slicing_function()
-    @staticmethod
-    def is_holidays(x: pd.Series) -> bool:
-        """Slicing function for holiday timestamps."""
-        return x["is_holiday"] == 1
+        slicing_fn.name = name
+        return slicing_fn
 
-    @slicing_function()
-    @staticmethod
-    def is_weekend(x: pd.Series) -> bool:
-        """Slicing function for weekend timestamps."""
-        return x["is_weekend"] == 1
-
-    @staticmethod
-    def make_cut_off_slicing_function(function: Callable, cutoff: float) -> SlicingFunction:
-        """Create the slicing functions with their mathcing cut-offs."""
-        return SlicingFunction(
-            name=function.__name__,
-            f=function,
-            resources={"cut_off": cutoff},
-        )
-
-    def get_all_slicing_function(self, df_data: pd.DataFrame) -> list[SlicingFunction]:
-        """Dynamically define cut-off based slicing functions."""
-        cut_offs = {}
-        cut_offs["is_cold"] = df_data["t2m"].quantile(self.min_cut_off)
-        cut_offs["is_hot"] = df_data["t2m"].quantile(self.max_cut_off)
-        cut_offs["is_wet"] = df_data["tp"].quantile(self.max_cut_off)
-        cut_offs["is_windy"] = max(
-            [
+    def calculate_cut_offs(self, df_data: pd.DataFrame) -> dict[str, float]:
+        """Compute all cut-offs based on quantiles."""
+        cut_offs = {
+            "value_high": df_data["value"].quantile(self.max_cut_off),
+            "value_low": df_data["value"].quantile(self.min_cut_off),
+            "t2m_cold": df_data["t2m"].quantile(self.min_cut_off),
+            "t2m_hot": df_data["t2m"].quantile(self.max_cut_off),
+            "tp_wet": df_data["tp"].quantile(self.max_cut_off),
+            "windy": max(
                 df_data["u10"].quantile(self.max_cut_off),
                 df_data["v10"].quantile(self.max_cut_off),
-            ],
-        )
+            ),
+        }
+        return cut_offs
 
-        all_slicing_functions = [self.is_holidays, self.is_weekend]
-        for function in [
-            self.is_cold,
-            self.is_hot,
-            self.is_wet,
-            self.is_windy,
-        ]:
-            all_slicing_functions.append(
-                self.make_cut_off_slicing_function(
-                    function=function,
-                    cutoff=cut_offs[function.__name__],
-                ),
+    def create_hourly_slicing_functions(self) -> list[SlicingFunction]:
+        """Create slicing functions for each hour of the day."""
+        hourly_slicing_functions = []
+        for hour in range(24):
+            hourly_slicing_fn = self.create_equality_slicing_function(
+                field="hour_of_day",
+                value=hour,
+                name=f"is_hour_{hour}",
             )
+            hourly_slicing_functions.append(hourly_slicing_fn)
+        return hourly_slicing_functions
+
+    def get_all_slicing_functions(self, df_data: pd.DataFrame) -> list[SlicingFunction]:
+        """Create all slicing functions."""
+        cut_offs = self.calculate_cut_offs(df_data)
+        all_slicing_functions = [
+            self.create_equality_slicing_function("is_holiday", 1, "is_holidays"),
+            self.create_equality_slicing_function("is_weekend", 1, "is_weekend"),
+            self.create_inequality_slicing_function(
+                "value",
+                cut_offs["value_high"],
+                "high_value",
+                is_greater=True,
+            ),
+            self.create_inequality_slicing_function(
+                "value",
+                cut_offs["value_low"],
+                "low_value",
+                is_greater=False,
+            ),
+            self.create_inequality_slicing_function(
+                "t2m",
+                cut_offs["t2m_cold"],
+                "cold_temperature",
+                is_greater=False,
+            ),
+            self.create_inequality_slicing_function(
+                "t2m",
+                cut_offs["t2m_hot"],
+                "hot_temperature",
+                is_greater=True,
+            ),
+            self.create_inequality_slicing_function(
+                "tp",
+                cut_offs["tp_wet"],
+                "wet_precipitation",
+                is_greater=True,
+            ),
+            self.create_inequality_slicing_function(
+                "u10",
+                cut_offs["windy"],
+                "high_u10_wind",
+                is_greater=True,
+            ),
+            self.create_inequality_slicing_function(
+                "v10",
+                cut_offs["windy"],
+                "high_v10_wind",
+                is_greater=True,
+            ),
+        ]
+        # add hourly slicing functions
+        all_slicing_functions.extend(self.create_hourly_slicing_functions())
         return all_slicing_functions
 
     @staticmethod
     def get_slices(all_slicing_functions: list[SlicingFunction], df: pd.DataFrame) -> np.ndarray:
-        """Comptue slices given a list of slicing functions and df."""
+        """Compute slices given a list of slicing functions and df."""
         # TODO: issue with snorkel typing SlicingFunction <> LabellingFunction
         return PandasSFApplier(all_slicing_functions).apply(df)  # type: ignore
