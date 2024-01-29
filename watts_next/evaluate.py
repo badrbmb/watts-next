@@ -119,43 +119,43 @@ class SlicingFunctionsRepository:
             self.create_inequality_slicing_function(
                 "value",
                 cut_offs["value_high"],
-                "high_value",
+                "is_high_value",
                 is_greater=True,
             ),
             self.create_inequality_slicing_function(
                 "value",
                 cut_offs["value_low"],
-                "low_value",
+                "is_low_value",
                 is_greater=False,
             ),
             self.create_inequality_slicing_function(
                 "t2m",
                 cut_offs["t2m_cold"],
-                "cold_temperature",
+                "is_cold_temperature",
                 is_greater=False,
             ),
             self.create_inequality_slicing_function(
                 "t2m",
                 cut_offs["t2m_hot"],
-                "hot_temperature",
+                "is_hot_temperature",
                 is_greater=True,
             ),
             self.create_inequality_slicing_function(
                 "tp",
                 cut_offs["tp_wet"],
-                "wet_precipitation",
+                "is_wet_precipitation",
                 is_greater=True,
             ),
             self.create_inequality_slicing_function(
                 "u10",
                 cut_offs["windy"],
-                "high_u10_wind",
+                "is_high_u10_wind",
                 is_greater=True,
             ),
             self.create_inequality_slicing_function(
                 "v10",
                 cut_offs["windy"],
-                "high_v10_wind",
+                "is_high_v10_wind",
                 is_greater=True,
             ),
         ]
@@ -168,3 +168,17 @@ class SlicingFunctionsRepository:
         """Compute slices given a list of slicing functions and df."""
         # TODO: issue with snorkel typing SlicingFunction <> LabellingFunction
         return PandasSFApplier(all_slicing_functions).apply(df)  # type: ignore
+
+    def tag_slices(
+        self,
+        df: pd.DataFrame,
+        slicing_functions: list[SlicingFunction],
+    ) -> pd.DataFrame:
+        """Tag all slices as columns in the supplied df."""
+        slices = self.get_slices(slicing_functions, df)
+        df_out = df.copy()
+        for slice_name in slices.dtype.names:
+            df_out[slice_name] = False
+            mask = slices[slice_name].astype(bool)
+            df_out.loc[mask, slice_name] = True
+        return df_out
